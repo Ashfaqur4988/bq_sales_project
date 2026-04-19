@@ -1,0 +1,40 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+venv/
+env/
+ENV/
+.venv/
+
+# Environment variables
+.env
+.env.local
+
+# Databases
+*.sqlite3
+*.db
+app.db
+
+# Flask specific
+instance/
+.webassets-cache
+
+# Google Cloud credentials
+*.json
+!package.json
+!package-lock.json
+fast-cascade-*.json
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Logs
+*.log

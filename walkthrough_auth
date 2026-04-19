@@ -1,0 +1,23 @@
+# Authentication & Role-Based Access Control
+
+Your application now fully features user registration, JWT-based authentication, and admin privileges utilizing a PostgreSQL database via `Flask-SQLAlchemy`.
+
+## What Was Setup
+1. **PostgreSQL / SQLAlchemy:** The project is configured with `Flask-SQLAlchemy` and `Flask-Migrate`. It looks for `DATABASE_URL` in your environment (e.g., in your `.env` file) to connect to your GCP Postgres DB. `psycopg2-binary` is installed to support PostgreSQL.
+2. **User Creation:** The new `/auth/register` and `/auth/login` endpoints allow users to create an account and receive a JWT. You can pass `"admin": true` inside the payload when registering to acquire Admin privileges.
+3. **Role-Based Access Control:**
+   - **General:** Valid `Authorization: Bearer <token>` required.
+   - **User Level (`@token_required`):** Accessible paths are `/analytics/sales`, `/analytics/total-sales`, and `/analytics/sales-by-region`.
+   - **Admin Level (`@admin_required`):** Accessible paths include all `/file` routes, `/analytics/predict`, and `/analytics/customer-segments`.
+
+## Verifying
+
+> [!IMPORTANT]
+> To initialize the database, ensure your `.env` contains your `DATABASE_URL`. If you don't declare one, it will fall back to a local SQLite database named `app.db`.
+> Then, run `flask db init`, `flask db migrate`, and `flask db upgrade` in your terminal to create the Users table.
+
+1. Once the server is running, go to Swagger UI (`/apidocs/`).
+2. Explore the **Auth** grouping to use `/auth/register` and create an admin user (payload `{"username":"boss", "password":"password", "admin":true}`).
+3. Use `/auth/login` to obtain your token.
+4. Click the central **Authorize** button at the top right of the Swagger UI and type `Bearer <your-token>`.
+5. Test the restricted endpoints to see your permissions in action!
