@@ -212,3 +212,76 @@ nohup gunicorn --workers 3 --bind 0.0.0.0:5000 app:app > gunicorn_logs.txt 2>&1 
 ### Phase 6: You are Live!
 Navigate your browser to `http://<your-Compute-Engine-IP>:5000/apidocs/` to test your fully deployed API!
 If you ever want to stop the server, you can find its Process ID with `pkill gunicorn`.
+
+---
+
+## 7. RAG (Retrieval-Augmented Generation) Integrations
+
+The API now fully supports an integrated RAG flow to query custom documents intelligently utilizing Langchain and HuggingFace/Groq.
+
+### Core Concepts
+
+**1. What is RAG?**  
+**RAG (Retrieval-Augmented Generation)** is an AI framework that improves the quality of Large Language Model (LLM) responses by grounding the model on external sources of knowledge. Instead of relying solely on the data the LLM was originally trained on, a RAG agent first accesses specific, provided documents (like your PDFs or text files) to find relevant facts, and then provides those facts to the LLM to generate an accurate, context-aware answer. 
+
+**2. What is an LLM?**  
+An **LLM (Large Language Model)**, like OpenAI's GPT-4 or Meta's Llama 3 (which you are using via Groq), is an AI model trained on massive amounts of text data. It understands human language and can generate human-like text, summarize information, answer questions, and execute logic based on instructions (prompts) you give it.
+
+**3. What are Embeddings?**  
+**Embeddings** are numerical representations of text. In machine learning, texts are converted into lists of numbers (vectors) in a high-dimensional space so that computers can understand the "meaning" of the words. Text containing similar concepts will have embeddings that are mathematically close to each other. When a user asks a question, we convert the question into an embedding and find the text chunks with the "closest" embeddings to retrieve relevant context.
+
+**4. The RAG Flow**  
+The typical RAG process follows these steps:
+1. **Load data:** Read documents (PDF, CSV, docx, etc.).
+2. **Chunk data:** Split the documents into smaller text sections (because LLMs have a limit on how much text they can read at once).
+3. **Embed:** Convert these text chunks into vectors using an embeddings model.
+4. **Store:** Store these numerical vectors in a Vector Database (like FAISS) so they can be searched quickly.
+5. **Retrieve:** When a user asks a question, convert the question into a vector and search the database for the most mathematically similar (relevant) chunks.
+6. **Generate:** Feed these relevant chunks to the LLM as facts along with the user's question, so the LLM can generate a confident, source-backed answer.
+
+### Code Breakdown: `services/rag_services.py`
+
+#### Data Ingestion & Storage
+```python
+def process_document(file_path):
+    global vector_store
+    
+    # 1. Load document via helper function
+    documents = load_document(file_path)
+
+    # 2. Chunk: splits files so LLMs can handle them, maintaining a 100 char overlap 
+    # to avoid clipping sentences contextually.
+    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
+    docs = splitter.split_documents(documents)
+    
+    # 3. Embed & 4. Store in FAISS
+    # We turn chunked text into mathematical vectors using locally hosted HuggingFace models,
+    # and bind them to the FAISS Vector Database for querying later.
+    vector_store = FAISS.from_documents(docs, embeddings)
+    return "Document processed successfully"
+```
+
+#### Retrieval & Generation
+```python
+def ask_question(question):
+    global vector_store
+    
+    # 5. Retrieve top 3 relevant chunks
+    retriever = vector_store.as_retriever(search_kwargs={"k": 3})
+    relevant_docs = retriever.invoke(question)
+    context = "\n".join([doc.page_content for doc in relevant_docs])
+    
+    # 6. LLM Evaluation
+    llm = ChatGroq(model_name="llama-3.1-8b-instant", groq_api_key=GROQ_API_KEY)
+    
+    # We constrain the LLM context to avoid AI hallucinations
+    prompt = f"Use the following context to answer the question.\nContext:\n{context}\nQuestion: {question}"
+    
+    response = llm.invoke(prompt)
+    return response.content
+```
+
+### Code Breakdown: `routes/rag_routes.py`
+Exposes the RAG flow as HTTP API endpoints:
+- **`POST /rag/upload`**: Retrieves `multipart/form-data` uploads, saves them locally via `file_utils`, and processes them into embeddings via `process_document`.
+- **`POST /rag/ask`**: Accepts a JSON `{"query": "your question"}` payload. Invokes the `ask_question()` retriever to query the FAISS in-memory DB and streams back the LLM's response.

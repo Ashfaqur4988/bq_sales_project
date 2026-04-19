@@ -3,6 +3,7 @@ from flasgger import Swagger
 from routes.analytics_routes import analytics_bp
 from routes.file_upload_route import file_bp
 from routes.auth_routes import auth_bp
+from routes.rag_routes import rag_bp
 from database import db
 from flask_migrate import Migrate
 import config
@@ -54,6 +55,7 @@ swagger = Swagger(app, config=swagger_config, template=swagger_template)
 app.register_blueprint(auth_bp, url_prefix="/auth")
 app.register_blueprint(analytics_bp, url_prefix="/analytics")
 app.register_blueprint(file_bp, url_prefix="/file")
+app.register_blueprint(rag_bp, url_prefix="/rag")
 
 @app.route("/")
 def home():
