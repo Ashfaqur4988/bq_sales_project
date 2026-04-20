@@ -16,6 +16,28 @@ embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
 #Global (in-memory store)
 vector_store = None
 
+def split_queries(question):
+    return [q.strip() for q in question.split("\n") if q.strip()]
+
+def is_safe_query(question):
+    llm = ChatGroq(
+        model_name="llama-3.1-8b-instant",
+        groq_api_key=GROQ_API_KEY
+    )
+
+    moderation_prompt = f"""
+    Determine if the following query contains harmful, abusive, or inappropriate content.
+
+    Query: "{question}"
+
+    Respond ONLY with:
+    SAFE or UNSAFE
+    """
+
+    response = llm.invoke(moderation_prompt).content.strip()
+
+    return response == "SAFE"
+
 def load_document(file_path):
     ext = os.path.splitext(file_path)[1].lower()
 
@@ -60,24 +82,35 @@ def ask_question(question):
     if vector_store is None:
         return "No documents uploaded yet."
 
-    #5. Retrieve
-    retriever = vector_store.as_retriever(search_kwargs={"k": 3})
-    relevant_docs = retriever.invoke(question)
+    queries = split_queries(question)
 
-    context = "\n".join([doc.page_content for doc in relevant_docs])
+    responses = []
 
-    #6 LLM
-    llm = ChatGroq(model_name="llama-3.1-8b-instant", groq_api_key=GROQ_API_KEY)
+    for q in queries:
+        # 🚫 Moderation check
+        if not is_safe_query(question):
+            return "Your query contains inappropriate content. Please rephrase."
 
-    #prompt
-    prompt = f"""Use the following context to answer the question.
-    
-    Context:
-    {context}
-    
-    Question: {question}
-    """ 
+        #5. Retrieve
+        retriever = vector_store.as_retriever(search_kwargs={"k": 3})
+        relevant_docs = retriever.invoke(question)
 
-    response = llm.invoke(prompt)
+        context = "\n".join([doc.page_content for doc in relevant_docs])
 
-    return response.content
+        #6 LLM
+        llm = ChatGroq(model_name="llama-3.1-8b-instant", groq_api_key=GROQ_API_KEY)
+
+        #prompt
+        prompt = f"""Use the following context to answer the question.
+        
+        Context:
+        {context}
+        
+        Question: {question}
+        """ 
+
+        response = llm.invoke(prompt)
+
+        responses.append(f"Query: {q} \n Answer: {response.content}\n")
+
+    return "\n".join(responses)
